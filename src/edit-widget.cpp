@@ -13,6 +13,7 @@
 #include "obs-properties-widget.h"
 #include "helpers.h"
 #include "protocols.h"
+#include "youtube-ui.h"
 
 static std::optional<int> ParseStringToInt(const QString& str) {
     try {
@@ -152,6 +153,7 @@ class EditOutputWidgetImpl: public EditOutputWidget
     QWidget* container_;
     ContentSizeScrollArea* scroll_;
     ContentSizeTabWidget* outputSettingsTabs_ = nullptr;
+    YouTubeTab* youtubeTab_ = nullptr;
 
     std::string targetid_;
     OutputTargetConfigPtr config_ = nullptr;
@@ -431,6 +433,13 @@ protected:
             outputSettings_ = new PropertiesWidget([this]() { ScheduleResizeToContent(); }, tab);
             updateOutputTab();
             tab->addTab(outputSettings_, obs_module_text("Tab.Output"));
+        }
+
+        // youtube
+        {
+            youtubeTab_ = new YouTubeTab(tab);
+            youtubeTab_->Load(config_->youtube);
+            tab->addTab(youtubeTab_, "YouTube");
         }
 
         QObject::connect(tab, &QTabWidget::currentChanged, [this](int) {
@@ -977,6 +986,8 @@ public:
         config_->syncStop = syncStop_->isChecked();
         config_->outputParam = outputSettings_->Save();
         config_->serviceParam = serviceSettings_->Save();
+        if (youtubeTab_)
+            youtubeTab_->Save(config_->youtube);
 
         if (venc_->currentData().isValid()) {
             std::string encoderId = venc_->currentData().toString().toStdString();

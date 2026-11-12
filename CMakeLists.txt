@@ -55,7 +55,15 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
   ./src/protocols.cpp
   ./src/helpers.h
   ./src/helpers.cpp
+  ./src/youtube-api.h
+  ./src/youtube-api.cpp
+  ./src/youtube-ui.h
+  ./src/youtube-ui.cpp
 )
+
+if(WIN32)
+  target_link_libraries(${CMAKE_PROJECT_NAME} PRIVATE winhttp)
+endif()
 
 target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE
   ./dep/nlohmann-json

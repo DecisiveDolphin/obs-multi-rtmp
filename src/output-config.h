@@ -9,6 +9,8 @@
 
 #include <json.hpp>
 
+#include "youtube-api.h"
+
 struct VideoEncoderConfig {
     std::string id;
     std::string encoderId;
@@ -52,6 +54,9 @@ struct OutputTargetConfig {
 
     std::optional<std::string> videoConfig;
     std::optional<std::string> audioConfig;
+
+    // Optional: create a YouTube broadcast with this title/thumbnail on start.
+    YouTubeTargetConfig youtube;
 };
 using OutputTargetConfigPtr = std::shared_ptr<OutputTargetConfig>;
 

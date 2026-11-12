@@ -32,6 +32,16 @@ static nlohmann::json SaveTarget(OutputTargetConfig& config) {
         json["video-config"] = *config.videoConfig;
     if (config.audioConfig.has_value())
         json["audio-config"] = *config.audioConfig;
+    {
+        nlohmann::json yt;
+        yt["enabled"] = config.youtube.enabled;
+        yt["title"] = config.youtube.title;
+        yt["description"] = config.youtube.description;
+        yt["privacy"] = config.youtube.privacy;
+        yt["thumbnail"] = config.youtube.thumbnailPath;
+        yt["made-for-kids"] = config.youtube.madeForKids;
+        json["youtube"] = yt;
+    }
     return json;
 }
 
@@ -133,6 +143,14 @@ static OutputTargetConfigPtr LoadTargetConfig(nlohmann::json& json) {
     config->outputParam = GetJsonField<nlohmann::json>(json, "output-param").value_or(nlohmann::json{});
     config->videoConfig = GetJsonField<std::string>(json, "video-config");
     config->audioConfig = GetJsonField<std::string>(json, "audio-config");
+    if (auto yt = GetJsonField<nlohmann::json>(json, "youtube"); yt.has_value() && yt->is_object()) {
+        config->youtube.enabled = GetJsonField<bool>(*yt, "enabled").value_or(false);
+        config->youtube.title = GetJsonField<std::string>(*yt, "title").value_or("");
+        config->youtube.description = GetJsonField<std::string>(*yt, "description").value_or("");
+        config->youtube.privacy = GetJsonField<std::string>(*yt, "privacy").value_or("public");
+        config->youtube.thumbnailPath = GetJsonField<std::string>(*yt, "thumbnail").value_or("");
+        config->youtube.madeForKids = GetJsonField<bool>(*yt, "made-for-kids").value_or(false);
+    }
 
     return config;
 }

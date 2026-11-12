@@ -11,6 +11,10 @@
 #include "edit-widget.h"
 #include "output-config.h"
 #include "protocols.h"
+#include "youtube-api.h"
+#include <QApplication>
+#include <QPointer>
+#include <thread>
 
 #include "obs.hpp"
 
@@ -256,6 +260,9 @@ class PushWidgetImpl : public PushWidget, public IOBSOutputEventHanlder
     std::shared_ptr<SharedSceneView> scene_view_;
     bool isUseDelay_ = false;
     std::atomic_bool isStarting_ = false;
+    // Set once the YouTube broadcast for this start has been created, so the
+    // second pass through StartStreaming() goes straight to the output.
+    bool youtubeReady_ = false;
 
     bool isConnecting_ = false;
     bool isReconnecting_ = false;
@@ -773,6 +780,32 @@ public:
             return;
         }
 
+        if (config_->youtube.enabled && config_->protocol == "RTMP" && !youtubeReady_) {
+            SetMsg(u8"Setting up YouTube broadcast...");
+            auto ytConfig = config_->youtube;
+            std::string streamKey;
+            if (config_->serviceParam.is_object() && config_->serviceParam.contains("key")
+                && config_->serviceParam["key"].is_string())
+                streamKey = config_->serviceParam["key"].get<std::string>();
+
+            // QPointer<QWidget>: PushWidgetImpl inherits QWidget virtually, so
+            // QPointer<PushWidgetImpl> can't static_cast back down.
+            QPointer<QWidget> guard(this);
+            auto self = this;
+            std::thread([guard, self, ytConfig, streamKey]() {
+                auto result = youtube::PrepareBroadcast(ytConfig, streamKey);
+                QMetaObject::invokeMethod(qApp, [guard, self, result]() {
+                    if (guard)
+                        self->OnYouTubePrepared(result);
+                }, Qt::QueuedConnection);
+            }).detach();
+
+            // Stay in "starting" state until OnYouTubePrepared() runs.
+            resetStarting.Dismiss();
+            return;
+        }
+        youtubeReady_ = false;
+
         // recreate output
         ReleaseOutput();
 
@@ -839,6 +872,25 @@ public:
 
         // Start is asynchronous: keep the flag set until OnStarted()/OnStopped() clears it.
         resetStarting.Dismiss();
+    }
+
+    void OnYouTubePrepared(const youtube::BroadcastResult& result)
+    {
+        isStarting_ = false;
+        if (!result.ok) {
+            blog(LOG_WARNING, TAG "YouTube setup failed for %s: %s", config_->name.c_str(), result.error.c_str());
+            SetMsg(QString::fromUtf8("YouTube: ") + QString::fromStdString(result.error));
+            return;
+        }
+        if (!result.warning.empty()) {
+            auto box = new QMessageBox(QMessageBox::Warning, "YouTube",
+                QString::fromStdString(result.warning), QMessageBox::Ok, this);
+            box->setAttribute(Qt::WA_DeleteOnClose);
+            box->setModal(false);
+            box->show();
+        }
+        youtubeReady_ = true;
+        StartStreaming();
     }
 
     void StopStreaming() override {
